@@ -16,9 +16,7 @@ import {
   isCorrect,
   questionsFor,
 } from '@/logic/daily';
-import { shouldShowInterstitial } from '@/monetization/adPolicy';
-import { shouldShowAds } from '@/monetization/entitlements';
-import { showInterstitial } from '@/monetization/interstitial';
+import { noteGameFinished } from '@/monetization/pacing';
 import { usePremiumStore } from '@/store/usePremiumStore';
 import { useQuizStore } from '@/store/useQuizStore';
 import { MIN_TOUCH_TARGET, useTheme, withAlpha } from '@/theme';
@@ -75,18 +73,8 @@ export default function Home() {
     setPending(null);
     // The interstitial goes here — between questions, never over one — and only
     // when the day is finished, so it cannot interrupt a run.
-    if (
-      answers.length + 1 >= DAILY_COUNT &&
-      shouldShowAds({ isPremium, isReady }) &&
-      shouldShowInterstitial({
-        gamesPlayed: 1,
-        lastInterstitialAt: 0,
-        now: Date.now(),
-        adsRemoved: isPremium,
-      })
-    ) {
-      showInterstitial();
-    }
+    // Only when the day's quiz is actually over, not after every question.
+    if (answers.length + 1 >= DAILY_COUNT) void noteGameFinished();
   };
 
   const openDay = (target: number) => {

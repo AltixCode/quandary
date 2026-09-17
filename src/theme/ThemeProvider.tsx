@@ -8,14 +8,19 @@ import React, {
   useState,
   type ReactNode,
 } from 'react';
-import { useColorScheme } from 'react-native';
+import { useColorScheme, useWindowDimensions } from 'react-native';
 
 import {
+  TABLET_MIN_WIDTH,
   darkPalette,
   elevation,
   lightPalette,
   motion,
   radius,
+  scaleSpacing,
+  type ScaledSpacing,
+  type ScaledTypography,
+  scaleTypography,
   spacing,
   typography,
   type Palette,
@@ -27,9 +32,9 @@ const STORAGE_KEY = 'quandary.theme-preference';
 
 export interface Theme {
   colors: Palette;
-  spacing: typeof spacing;
+  spacing: ScaledSpacing;
   radius: typeof radius;
-  typography: typeof typography;
+  typography: ScaledTypography;
   motion: typeof motion;
   elevation: typeof elevation;
   isDark: boolean;
@@ -42,12 +47,12 @@ interface ThemeContextValue extends Theme {
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
-function buildTheme(isDark: boolean): Theme {
+function buildTheme(isDark: boolean, isTablet: boolean): Theme {
   return {
     colors: isDark ? darkPalette : lightPalette,
-    spacing,
+    spacing: scaleSpacing(isTablet),
     radius,
-    typography,
+    typography: scaleTypography(isTablet),
     motion,
     elevation,
     isDark,
@@ -56,6 +61,7 @@ function buildTheme(isDark: boolean): Theme {
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const systemScheme = useColorScheme();
+  const { width } = useWindowDimensions();
   const [preference, setPreferenceState] = useState<ThemePreference>('system');
 
   useEffect(() => {
@@ -81,10 +87,11 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const isDark = preference === 'system' ? systemScheme === 'dark' : preference === 'dark';
+  const isTablet = width >= TABLET_MIN_WIDTH;
 
   const value = useMemo<ThemeContextValue>(
-    () => ({ ...buildTheme(isDark), preference, setPreference }),
-    [isDark, preference, setPreference],
+    () => ({ ...buildTheme(isDark, isTablet), preference, setPreference }),
+    [isDark, isTablet, preference, setPreference],
   );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;

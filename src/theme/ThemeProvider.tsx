@@ -18,12 +18,12 @@ import {
   motion,
   radius,
   scaleSpacing,
-  type ScaledSpacing,
-  type ScaledTypography,
   scaleTypography,
   spacing,
   typography,
   type Palette,
+  type ScaledSpacing,
+  type ScaledTypography,
 } from './tokens';
 
 export type ThemePreference = 'system' | 'light' | 'dark';
@@ -87,11 +87,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const isDark = preference === 'system' ? systemScheme === 'dark' : preference === 'dark';
-  const isTablet = width >= TABLET_MIN_WIDTH;
 
   const value = useMemo<ThemeContextValue>(
-    () => ({ ...buildTheme(isDark, isTablet), preference, setPreference }),
-    [isDark, isTablet, preference, setPreference],
+    () => ({ ...buildTheme(isDark, width >= TABLET_MIN_WIDTH), preference, setPreference }),
+    [isDark, width, preference, setPreference],
   );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;

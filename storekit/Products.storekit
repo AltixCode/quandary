@@ -1,0 +1,35 @@
+{
+  "identifier": "DF2FAB77-DBBB-4108-9038-7E19EE50D289",
+  "nonRenewingSubscriptions": [],
+  "products": [
+    {
+      "displayPrice": "4.99",
+      "familyShareable": false,
+      "internalID": "E89E6914-15D0-4027-8190-05FB14E31D67",
+      "localizations": [
+        {
+          "description": "quandary remove ads lifetime unlock",
+          "displayName": "quandary remove ads",
+          "locale": "en_US"
+        }
+      ],
+      "productID": "com.altixcode.quandary.removeads",
+      "referenceName": "quandary remove ads",
+      "type": "NonConsumable"
+    }
+  ],
+  "settings": {
+    "_applicationInternalID": "",
+    "_developerTeamID": "",
+    "_failTransactionsEnabled": false,
+    "_lastSynchronizedDate": 0,
+    "_locale": "en_US",
+    "_storefront": "USA",
+    "_storeKitErrors": []
+  },
+  "subscriptionGroups": [],
+  "version": {
+    "major": 4,
+    "minor": 0
+  }
+}

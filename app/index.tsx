@@ -1,26 +1,28 @@
-import Feather from '@expo/vector-icons/Feather';
-import * as Haptics from 'expo-haptics';
-import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Feather from "@expo/vector-icons/Feather";
+import * as Haptics from "expo-haptics";
+import { useRouter } from "expo-router";
+import React, { useEffect, useState } from "react";
+import { Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { BannerAdSlot } from '@/components/BannerAdSlot';
-import { Button, Card, Text } from '@/components/ui';
-import { t } from '@/i18n';
+import { BannerAdSlot } from "@/components/BannerAdSlot";
+import { Button, Card, Text } from "@/components/ui";
+import { fetchQuestionsFor } from "@/content/sync";
+import { t } from "@/i18n";
 import {
   DAILY_COUNT,
   FREE_ARCHIVE_DAYS,
+  type Question,
   canOpenArchive,
   dayNumber,
   isCorrect,
   questionsFor,
-} from '@/logic/daily';
-import { noteGameFinished } from '@/monetization/pacing';
-import { usePremiumStore } from '@/store/usePremiumStore';
-import { useQuizStore } from '@/store/useQuizStore';
-import { MIN_TOUCH_TARGET, useTheme, withAlpha } from '@/theme';
-import { useTabletColumn } from '@/theme/useTabletColumn';
+} from "@/logic/daily";
+import { noteGameFinished } from "@/monetization/pacing";
+import { usePremiumStore } from "@/store/usePremiumStore";
+import { useQuizStore } from "@/store/useQuizStore";
+import { MIN_TOUCH_TARGET, useTheme, withAlpha } from "@/theme";
+import { useTabletColumn } from "@/theme/useTabletColumn";
 
 /** Past days offered in the archive list. */
 const ARCHIVE_SPAN = 10;
@@ -47,15 +49,41 @@ export default function Home() {
   // Deriving the index from the answer count alone advances it the instant the
   // answer is recorded, so the explanation card would render against the NEXT
   // question while the player is still reading about this one.
-  const [pending, setPending] = useState<{ index: number; choice: number } | null>(null);
+  const [pending, setPending] = useState<{
+    index: number;
+    choice: number;
+  } | null>(null);
 
   useEffect(() => {
     void hydrate();
   }, [hydrate]);
 
-  const questions = questionsFor(day);
+  // The bundled pool answers instantly so the first paint never waits on a
+  // network call; a background fetch then swaps in the service's rotation for
+  // this day if it answers in time and the player hasn't started answering
+  // yet (swapping mid-quiz would move the question out from under an answer
+  // already recorded by index).
+  const [questions, setQuestions] = useState<Question[]>(() =>
+    questionsFor(day),
+  );
+  useEffect(() => {
+    let cancelled = false;
+    setQuestions(questionsFor(day));
+    void fetchQuestionsFor(day).then((fetched) => {
+      if (cancelled) return;
+      if (answersFor(day).length > 0) return;
+      setQuestions(fetched);
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [day]);
+
   const answers = answersFor(day);
-  const index = pending ? pending.index : Math.min(answers.length, DAILY_COUNT - 1);
+  const index = pending
+    ? pending.index
+    : Math.min(answers.length, DAILY_COUNT - 1);
   const choice = pending?.choice ?? null;
   const question = questions[index]!;
   const done = isComplete(day);
@@ -67,7 +95,9 @@ export default function Home() {
     setPending({ index, choice: option });
     answer(day, index, right);
     void Haptics.notificationAsync(
-      right ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Warning,
+      right
+        ? Haptics.NotificationFeedbackType.Success
+        : Haptics.NotificationFeedbackType.Warning,
     );
   };
 
@@ -81,7 +111,7 @@ export default function Home() {
 
   const openDay = (target: number) => {
     if (!canOpenArchive(target, today, isPremium)) {
-      router.push('/paywall');
+      router.push("/paywall");
       return;
     }
     setPending(null);
@@ -97,19 +127,19 @@ export default function Home() {
           paddingHorizontal: spacing.base,
           paddingBottom: spacing.xl,
           gap: spacing.base,
-        
+
           ...tabletColumn,
         }}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.titleRow}>
           <Text variant="title" style={styles.grow}>
-            {t('appName')}
+            {t("appName")}
           </Text>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={t('settingsTitle')}
-            onPress={() => router.push('/settings')}
+            accessibilityLabel={t("settingsTitle")}
+            onPress={() => router.push("/settings")}
             hitSlop={8}
             style={styles.iconSlot}
           >
@@ -117,27 +147,27 @@ export default function Home() {
           </Pressable>
         </View>
 
-        <Text variant="heading">{t('todayTitle')}</Text>
+        <Text variant="heading">{t("todayTitle")}</Text>
         {days > 0 ? (
           <Text variant="caption" tone="muted">
-            {t('streakLabel', { n: days })}
+            {t("streakLabel", { n: days })}
           </Text>
         ) : null}
 
         {done ? (
           <Card>
-            <Text variant="heading">{t('doneTitle')}</Text>
+            <Text variant="heading">{t("doneTitle")}</Text>
             <Text variant="display">
-              {t('scoreLine', { score: scoreFor(day), total: DAILY_COUNT })}
+              {t("scoreLine", { score: scoreFor(day), total: DAILY_COUNT })}
             </Text>
             <Text variant="caption" tone="muted">
-              {t('comeBackTomorrow')}
+              {t("comeBackTomorrow")}
             </Text>
           </Card>
         ) : (
           <>
             <Text variant="caption" tone="muted">
-              {t('questionOf', { n: index + 1, total: DAILY_COUNT })}
+              {t("questionOf", { n: index + 1, total: DAILY_COUNT })}
             </Text>
             <Text variant="heading">{question.prompt}</Text>
             {question.options.map((option, i) => {
@@ -148,14 +178,18 @@ export default function Home() {
                   key={option}
                   accessibilityRole="button"
                   accessibilityLabel={option}
-                  accessibilityState={{ selected: chosen, disabled: choice !== null }}
+                  accessibilityState={{
+                    selected: chosen,
+                    disabled: choice !== null,
+                  }}
                   onPress={() => pick(i)}
                   style={[
                     styles.option,
                     {
                       borderRadius: radius.md,
                       paddingHorizontal: spacing.base,
-                      borderWidth: chosen || right ? 2 : StyleSheet.hairlineWidth,
+                      borderWidth:
+                        chosen || right ? 2 : StyleSheet.hairlineWidth,
                       borderColor: right
                         ? colors.success
                         : chosen
@@ -174,55 +208,68 @@ export default function Home() {
             {choice === null ? null : (
               <Card>
                 <Text variant="heading">
-                  {isCorrect(question, choice) ? t('correctTitle') : t('wrongTitle')}
+                  {isCorrect(question, choice)
+                    ? t("correctTitle")
+                    : t("wrongTitle")}
                 </Text>
                 <Text variant="caption" tone="muted">
-                  {t('explanationTitle')}
+                  {t("explanationTitle")}
                 </Text>
                 <Text variant="body">{question.explanation}</Text>
-                <Button label={t('nextCta')} onPress={next} style={{ marginTop: spacing.sm }} />
+                <Button
+                  label={t("nextCta")}
+                  onPress={next}
+                  style={{ marginTop: spacing.sm }}
+                />
               </Card>
             )}
           </>
         )}
 
         <Text variant="heading" style={{ marginTop: spacing.base }}>
-          {t('archiveTitle')}
+          {t("archiveTitle")}
         </Text>
         <View style={[styles.chipRow, { gap: spacing.sm }]}>
-          {Array.from({ length: ARCHIVE_SPAN }, (_, i) => today - i).map((target) => {
-            const allowed = canOpenArchive(target, today, isPremium);
-            const label = target === today ? t('todayTitle') : `-${today - target}`;
-            const chosen = target === day;
-            return (
-              <Pressable
-                key={target}
-                accessibilityRole="button"
-                accessibilityLabel={allowed ? label : t('dayLocked')}
-                accessibilityState={{ selected: chosen, disabled: !allowed }}
-                onPress={() => openDay(target)}
-                style={[
-                  styles.chip,
-                  {
-                    borderRadius: radius.full,
-                    paddingHorizontal: spacing.base,
-                    borderWidth: StyleSheet.hairlineWidth,
-                    borderColor: chosen ? colors.accent : colors.border,
-                    backgroundColor: chosen ? withAlpha(colors.accent, 0.16) : colors.surface,
-                  },
-                ]}
-              >
-                {/* Full contrast whether locked or not: the lock icon and the
+          {Array.from({ length: ARCHIVE_SPAN }, (_, i) => today - i).map(
+            (target) => {
+              const allowed = canOpenArchive(target, today, isPremium);
+              const label =
+                target === today ? t("todayTitle") : `-${today - target}`;
+              const chosen = target === day;
+              return (
+                <Pressable
+                  key={target}
+                  accessibilityRole="button"
+                  accessibilityLabel={allowed ? label : t("dayLocked")}
+                  accessibilityState={{ selected: chosen, disabled: !allowed }}
+                  onPress={() => openDay(target)}
+                  style={[
+                    styles.chip,
+                    {
+                      borderRadius: radius.full,
+                      paddingHorizontal: spacing.base,
+                      borderWidth: StyleSheet.hairlineWidth,
+                      borderColor: chosen ? colors.accent : colors.border,
+                      backgroundColor: chosen
+                        ? withAlpha(colors.accent, 0.16)
+                        : colors.surface,
+                    },
+                  ]}
+                >
+                  {/* Full contrast whether locked or not: the lock icon and the
                     accessibility label carry the state, not a dimmed label. */}
-                <Text variant="body">{label}</Text>
-                {allowed ? null : <Feather name="lock" size={14} color={colors.textMuted} />}
-              </Pressable>
-            );
-          })}
+                  <Text variant="body">{label}</Text>
+                  {allowed ? null : (
+                    <Feather name="lock" size={14} color={colors.textMuted} />
+                  )}
+                </Pressable>
+              );
+            },
+          )}
         </View>
         {isPremium ? null : (
           <Text variant="caption" tone="muted">
-            {t('archiveLocked', { n: FREE_ARCHIVE_DAYS })}
+            {t("archiveLocked", { n: FREE_ARCHIVE_DAYS })}
           </Text>
         )}
       </ScrollView>
@@ -232,15 +279,20 @@ export default function Home() {
 }
 
 const styles = StyleSheet.create({
-  titleRow: { flexDirection: 'row', alignItems: 'center' },
+  titleRow: { flexDirection: "row", alignItems: "center" },
   grow: { flex: 1 },
   iconSlot: {
     minWidth: MIN_TOUCH_TARGET,
     minHeight: MIN_TOUCH_TARGET,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
-  option: { minHeight: MIN_TOUCH_TARGET, justifyContent: 'center' },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap' },
-  chip: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: MIN_TOUCH_TARGET },
+  option: { minHeight: MIN_TOUCH_TARGET, justifyContent: "center" },
+  chipRow: { flexDirection: "row", flexWrap: "wrap" },
+  chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    minHeight: MIN_TOUCH_TARGET,
+  },
 });

@@ -17,6 +17,7 @@ import {
   dayNumber,
   isCorrect,
   questionsFor,
+  scoreDay,
 } from "@/logic/daily";
 import { noteGameFinished } from "@/monetization/pacing";
 import { usePremiumStore } from "@/store/usePremiumStore";
@@ -38,7 +39,6 @@ export default function Home() {
   const hydrate = useQuizStore((s) => s.hydrate);
   const answer = useQuizStore((s) => s.answer);
   const answersFor = useQuizStore((s) => s.answersFor);
-  const scoreFor = useQuizStore((s) => s.scoreFor);
   const isComplete = useQuizStore((s) => s.isComplete);
   const streak = useQuizStore((s) => s.streak);
 
@@ -53,6 +53,18 @@ export default function Home() {
     index: number;
     choice: number;
   } | null>(null);
+
+  // Finishing the day's official five used to be a hard stop — "come back
+  // tomorrow" with nothing else to do. There is no topic/category split in
+  // this app to gate a "free topic" behind, so the safe fix is: once a block
+  // of five is finished, offer another block from the same bank instead of
+  // ending the session. This flag is what lets the question UI past that
+  // boundary; it resets at the next boundary so each further block is its
+  // own explicit choice, and resets on switching days entirely.
+  const [keepPlaying, setKeepPlaying] = useState(false);
+  useEffect(() => {
+    setKeepPlaying(false);
+  }, [day]);
 
   useEffect(() => {
     void hydrate();
@@ -81,16 +93,26 @@ export default function Home() {
   }, [day]);
 
   const answers = answersFor(day);
-  const index = pending
-    ? pending.index
-    : Math.min(answers.length, DAILY_COUNT - 1);
+  const index = pending ? pending.index : answers.length;
   const choice = pending?.choice ?? null;
-  const question = questions[index]!;
+  // Block 0 is today's official five, sourced from `questions` above (the
+  // bundled pool, possibly swapped for the content service's rotation).
+  // Block 1, 2, ... are further fives from the local bank, asked only once a
+  // player has chosen to keep going past a boundary.
+  const block = Math.floor(index / DAILY_COUNT);
+  const posInBlock = index % DAILY_COUNT;
+  const blockQuestions = block === 0 ? questions : questionsFor(day, block);
+  const question = blockQuestions[posInBlock]!;
   const done = isComplete(day);
+  // A boundary is the moment a block of five has just been finished and no
+  // further block has been opted into yet — this is when the round-summary
+  // card (and its "keep playing" offer) shows instead of a question.
+  const atBoundary = done && posInBlock === 0 && !pending && !keepPlaying;
+  const justFinishedScore = scoreDay(answers.slice(index - DAILY_COUNT, index));
   const days = streak(today);
 
   const pick = (option: number) => {
-    if (choice !== null || done) return;
+    if (choice !== null || atBoundary) return;
     const right = isCorrect(question, option);
     setPending({ index, choice: option });
     answer(day, index, right);
@@ -104,9 +126,13 @@ export default function Home() {
   const next = () => {
     setPending(null);
     // The interstitial goes here — between questions, never over one — and only
-    // when the day is finished, so it cannot interrupt a run.
-    // Only when the day's quiz is actually over, not after every question.
-    if (answers.length + 1 >= DAILY_COUNT) void noteGameFinished();
+    // when a block is finished, so it cannot interrupt a run.
+    if ((answers.length + 1) % DAILY_COUNT === 0) {
+      void noteGameFinished();
+      // Back to the boundary card for this newly finished block; the next
+      // one is its own explicit "keep playing" choice.
+      setKeepPlaying(false);
+    }
   };
 
   const openDay = (target: number) => {
@@ -154,20 +180,26 @@ export default function Home() {
           </Text>
         ) : null}
 
-        {done ? (
+        {atBoundary ? (
           <Card>
             <Text variant="heading">{t("doneTitle")}</Text>
             <Text variant="display">
-              {t("scoreLine", { score: scoreFor(day), total: DAILY_COUNT })}
+              {t("scoreLine", { score: justFinishedScore, total: DAILY_COUNT })}
             </Text>
             <Text variant="caption" tone="muted">
               {t("comeBackTomorrow")}
             </Text>
+            <Button
+              label={t("playMoreCta")}
+              variant="secondary"
+              onPress={() => setKeepPlaying(true)}
+              style={{ marginTop: spacing.sm }}
+            />
           </Card>
         ) : (
           <>
             <Text variant="caption" tone="muted">
-              {t("questionOf", { n: index + 1, total: DAILY_COUNT })}
+              {t("questionOf", { n: posInBlock + 1, total: DAILY_COUNT })}
             </Text>
             <Text variant="heading">{question.prompt}</Text>
             {question.options.map((option, i) => {
